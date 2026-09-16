@@ -9,6 +9,7 @@ opencv-python>=4.9
 pillow>=10.0
 albumentations>=1.4
 lxml>=5.0          # Pascal VOC XML parsing
+pyyaml>=6.0        # YOLO data.yaml export
 
 # Data science
 numpy>=1.26
@@ -20,6 +21,7 @@ seaborn>=0.13
 # Notebooks
 jupyterlab>=4.1
 ipywidgets>=8.1
+ipykernel>=6.29
 
 # UI / demo app
 streamlit>=1.32
