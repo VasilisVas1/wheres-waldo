@@ -1,0 +1,28 @@
+# Core ML
+torch>=2.2
+torchvision>=0.17
+ultralytics>=8.3
+
+# CV / data
+opencv-python>=4.9
+pillow>=10.0
+albumentations>=1.4
+lxml>=5.0          # Pascal VOC XML parsing
+
+# Data science
+numpy>=1.26
+pandas>=2.2
+scikit-learn>=1.4
+matplotlib>=3.8
+seaborn>=0.13
+
+# Notebooks
+jupyterlab>=4.1
+ipywidgets>=8.1
+
+# UI / demo app
+streamlit>=1.32
+
+# Utilities
+python-dotenv>=1.0
+tqdm>=4.66
