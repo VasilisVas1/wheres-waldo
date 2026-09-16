@@ -14,6 +14,15 @@ cluttered "Where's Waldo?" scenes. Two detectors are built and compared:
 Both are wrapped in a Streamlit app that runs inference on a new scene and animates
 the search — from raw pixels to a bounding box.
 
+**Current status, honestly:** neither model is actually good at this task yet. The source
+dataset only yields 19 clean, hand-verified scenes after data cleaning (see notebook 01),
+which turned out to be too little data for either approach to generalize to a new scene —
+the sliding-window classifier drowns in false positives, and the fine-tuned YOLO memorizes
+its training images instead of learning to generalize. Both failure modes are diagnosed and
+documented in notebooks 03–05, not hidden. The demo app still works end to end and shows
+these results faithfully. See notebook 05's write-up for the full comparison and what more
+data would likely fix.
+
 ## Project structure
 
 ```
@@ -36,9 +45,14 @@ data/
 ## Dataset
 
 [Roboflow "where's waldo"](https://universe.roboflow.com/ml-9naud/where-s-waldo-vugud) —
-65 full Where's Waldo puzzle scenes, single class (`waldo`), bounding-box annotated,
-CC BY 4.0. Exported in Pascal VOC XML format. Train/val/test split is done at the
-**scene level** (never patch level) to avoid leakage between crops of the same image.
+65 raw images, single class (`waldo`), bounding-box annotated, CC BY 4.0, exported in
+Pascal VOC XML format. Notebook 01 found that most of these 65 images are actually
+unrelated portrait closeups rather than genuine "hidden in a crowd" puzzle scenes; after
+filtering to the genuine ones, **19 clean scenes** remain and are what the rest of the
+pipeline is built on (`data/processed/clean_manifest.csv`). With so few scenes, splitting
+happens via **scene-level 5-fold cross-validation** (notebook 02), not one fixed
+train/val/test split — and always at the scene level, never patch level, to avoid leakage
+between crops of the same image.
 
 ## Setup
 
