@@ -12,6 +12,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import yaml
 from PIL import Image
@@ -58,3 +59,51 @@ def export_yolo_fold(
     yaml_path = out_dir / "data.yaml"
     yaml_path.write_text(yaml.safe_dump(data_yaml))
     return yaml_path
+
+
+def add_synthetic_training_images(
+    train_scenes: pd.DataFrame,
+    crop_pool: pd.DataFrame,
+    out_dir: Path,
+    n_per_scene: int = 10,
+    n_paste: int = 1,
+    seed: int = 0,
+) -> int:
+    """Generate copy-paste synthetic composites from a fold's *training*
+    scenes only, and add them into out_dir/train/{images,labels} alongside
+    the real ones `export_yolo_fold` already wrote there.
+
+    Both the backgrounds and the pasted crops come exclusively from
+    `train_scenes` / the matching rows of `crop_pool` — the caller is
+    responsible for pre-filtering both to one fold's training split, so
+    nothing about a held-out validation scene can leak in here.
+
+    Returns the number of synthetic images written.
+    """
+    from src.data.synthetic_compositing import composite_synthetic_scene
+
+    rng = np.random.default_rng(seed)
+    train_scene_ids = set(train_scenes["scene_id"])
+    pool = crop_pool[crop_pool["scene_id"].isin(train_scene_ids)]
+
+    images_dir = out_dir / "train" / "images"
+    labels_dir = out_dir / "train" / "labels"
+    n_written = 0
+
+    for _, scene in train_scenes.iterrows():
+        background = Image.open(scene["image_path"]).convert("RGB")
+        other_crop_paths = pool[pool["scene_id"] != scene["scene_id"]]["path"].tolist()
+        if not other_crop_paths:
+            continue
+        paste_crops = [Image.open(p) for p in other_crop_paths]
+
+        for i in range(n_per_scene):
+            composite, boxes = composite_synthetic_scene(
+                background, scene["boxes"], paste_crops, rng, n_paste=n_paste
+            )
+            name = f"{scene['scene_id']}_synth{i:02d}"
+            composite.save(images_dir / f"{name}.jpg")
+            _write_yolo_label(labels_dir / f"{name}.txt", boxes, composite.width, composite.height)
+            n_written += 1
+
+    return n_written
