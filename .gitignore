@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+*.log
+weights/
 data/raw/
 data/processed/
 Hey-Waldo/
