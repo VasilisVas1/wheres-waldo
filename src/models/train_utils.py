@@ -10,6 +10,8 @@ from torch.utils.data import DataLoader
 
 from src.data.patch_dataset import PatchDataset
 
+DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 @dataclass
 class FoldHistory:
@@ -18,7 +20,7 @@ class FoldHistory:
     val_accuracy: list[float] = field(default_factory=list)
 
 
-def run_epoch(model: nn.Module, loader: DataLoader, criterion, optimizer=None, device: str = "cpu"):
+def run_epoch(model: nn.Module, loader: DataLoader, criterion, optimizer=None, device: str = DEFAULT_DEVICE):
     is_train = optimizer is not None
     model.train(is_train)
 
@@ -49,20 +51,25 @@ def train_fold(
     epochs: int = 15,
     batch_size: int = 32,
     lr: float = 1e-3,
-    device: str = "cpu",
+    device: str = DEFAULT_DEVICE,
 ) -> FoldHistory:
+    model.to(device)
+
     train_ds = PatchDataset(patch_manifest, fold_assignment, val_fold, split="train")
     val_ds = PatchDataset(patch_manifest, fold_assignment, val_fold, split="val")
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+    # pin_memory + multiple workers only help when copying to a GPU; on CPU
+    # they add overhead for no benefit.
+    loader_kwargs = {"num_workers": 2, "pin_memory": True} if device != "cpu" else {}
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, **loader_kwargs)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, **loader_kwargs)
 
     # Positive patches are far rarer than negative ones even after undersampling
     # (~126 positive vs ~760 negative base patches) — weight the loss so the
     # optimizer doesn't just learn to predict "negative" for everything.
     n_pos = (train_ds.rows["label"] == 1).sum()
     n_neg = (train_ds.rows["label"] == 0).sum()
-    pos_weight = torch.tensor(n_neg / max(1, n_pos))
+    pos_weight = torch.tensor(n_neg / max(1, n_pos), device=device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

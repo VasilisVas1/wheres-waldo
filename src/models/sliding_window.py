@@ -28,6 +28,7 @@ from src.eval.box_utils import non_max_suppression
 
 DEFAULT_WINDOW_SIZES = (32, 48, 64, 96, 128)
 DEFAULT_STRIDE_FRACTION = 0.5
+DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 @dataclass
@@ -53,8 +54,9 @@ def detect(
     score_threshold: float = 0.5,
     nms_iou_threshold: float = 0.2,
     batch_size: int = 256,
-    device: str = "cpu",
+    device: str = DEFAULT_DEVICE,
 ) -> list[Detection]:
+    model.to(device)
     model.eval()
     W, H = image.width, image.height
 
