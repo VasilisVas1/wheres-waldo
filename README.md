@@ -37,7 +37,7 @@ src/
   models/            sliding-window CNN, IoU/NMS implementation
   eval/              detection metrics (precision/recall @ IoU, mAP, localization error)
 app/                 Streamlit demo app, loads the best trained model
-kaggle/              runs the (unmodified) notebooks on Kaggle -- see kaggle/README.md
+run_all.py           runs notebooks 01-05 unattended (e.g. overnight)
 data/
   raw/               downloaded source dataset (gitignored)
   processed/         generated patches / splits (gitignored)
@@ -80,8 +80,18 @@ Work through `notebooks/01_...` to `notebooks/05_...` in order — each stage de
 on artifacts produced by the previous one (raw data → patches/splits → trained
 sliding-window model → trained YOLO model → evaluation).
 
-Training (notebooks 03–04) is heavy for a CPU; run the whole pipeline on Kaggle's free GPU instead.
-The notebooks are identical in both places — see [kaggle/README.md](kaggle/README.md).
+### Running everything unattended
+
+Training (notebooks 03–04) takes hours on a CPU, so run the whole pipeline in the background:
+
+```bash
+python run_all.py --detach      # notebooks 01 -> 05 in order; stops at the first failure
+python run_all.py --from 04     # resume from a notebook (e.g. after an interruption)
+```
+
+It keeps Windows from idle-sleeping while it runs (closing the lid can still sleep the machine, so
+leave it open and plugged in). Progress is in `logs/status.json` and `logs/<notebook>.log`; each
+notebook is saved in place with its outputs when it finishes.
 
 ## Running the demo app
 
