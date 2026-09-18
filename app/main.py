@@ -30,8 +30,9 @@ MODELS_DIR = PROJECT_ROOT / "models"
 st.set_page_config(page_title="Finding Waldo", layout="wide")
 st.title("🔍 Finding Waldo")
 st.caption(
-    "A from-scratch sliding-window CNN and a fine-tuned YOLO, trained on 19 scenes, "
-    "searching a new Where's Waldo scene."
+    "A from-scratch sliding-window CNN and a fine-tuned YOLO, each trained on 15 of 19 scenes. "
+    "Experimental: in cross-validation the CNN finds Waldo in ~4 of 10 held-out scenes but buries him among "
+    "hundreds of false boxes; YOLO shows few false boxes but finds him in only ~1 of 5."
 )
 
 
@@ -142,7 +143,7 @@ if uploaded is not None and model_choice is not None:
                 result = draw_boxes(image, detections, color="red")
                 placeholder.image(result, caption=f"{len(detections)} detection(s) after NMS", use_container_width=True)
         else:
-            conf = st.slider("Detection confidence threshold", 0.1, 0.95, 0.4, 0.05)
+            conf = st.slider("Detection confidence threshold", 0.05, 0.95, 0.1, 0.05)
             if st.button("Search for Waldo"):
                 yolo_result = yolo_model.predict(image, conf=conf, verbose=False)[0]
                 detections = [

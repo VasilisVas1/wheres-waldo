@@ -14,14 +14,23 @@ cluttered "Where's Waldo?" scenes. Two detectors are built and compared:
 Both are wrapped in a Streamlit app that runs inference on a new scene and animates
 the search — from raw pixels to a bounding box.
 
-**Current status, honestly:** neither model is actually good at this task yet. The source
-dataset only yields 19 clean, hand-verified scenes after data cleaning (see notebook 01),
-which turned out to be too little data for either approach to generalize to a new scene —
-the sliding-window classifier drowns in false positives, and the fine-tuned YOLO memorizes
-its training images instead of learning to generalize. Both failure modes are diagnosed and
-documented in notebooks 03–05, not hidden. The demo app still works end to end and shows
-these results faithfully. See notebook 05's write-up for the full comparison and what more
-data would likely fix.
+**Current status, honestly:** neither model is a reliable Waldo finder yet. The source
+dataset only yields 19 clean, hand-verified scenes after data cleaning (see notebook 01);
+adding Hey-Waldo patches and copy-paste synthetic scenes helped, but not enough. Measured with
+scene-level 5-fold cross-validation (IoU ≥ 0.3, 21 Waldo boxes in 19 scenes):
+
+| model | found | false positives | missed | precision | recall |
+|---|---|---|---|---|---|
+| Sliding-window CNN (from scratch) | 8 | 4,203 | 13 | 0.002 | 0.38 |
+| YOLO11n (fine-tuned, `conf=0.1`) | 4 | 34 | 17 | 0.105 | 0.19 |
+
+The CNN finds Waldo more often but buries him under thousands of false boxes; YOLO is far
+quieter and ~50× faster, but misses about four in five. Nine scenes are missed by both. With
+only 21 boxes and an untuned YOLO threshold these numbers are low-confidence. Both failure
+modes are diagnosed in notebooks 03–05. The demo app runs end to end (its YOLO model is the
+best-scoring fold, trained on 15 of the 19 scenes). See notebook 05's write-up for the full
+comparison and the next steps most likely to help (more real scenes, native-resolution tiling,
+a properly tuned YOLO threshold).
 
 ## Project structure
 
