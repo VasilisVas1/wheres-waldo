@@ -1,7 +1,7 @@
 # Running this project on Google Colab
 
-All heavy computation (notebooks 03 and 04 — the actual model training) should run on Colab's free
-GPU, not locally. This is a one-time setup; after that, every notebook auto-detects Colab and handles
+All heavy computation should run on Colab, not locally — in practice that means notebook 04 (YOLO
+training) on Colab's free GPU; everything else is light enough for a CPU runtime. This is a one-time setup; after that, every notebook auto-detects Colab and handles
 mounting/installing/paths itself.
 
 > **Important — if you already ran notebooks 01/02 before this file was updated:** the notebooks
@@ -49,9 +49,10 @@ From Google Drive, right-click each notebook → **Open with → Google Colabora
 [colab.research.google.com](https://colab.research.google.com) → File → Open notebook → Google Drive,
 and pick it from `wheres-wally/notebooks/`).
 
-**Before running anything**, set the runtime to GPU: **Runtime → Change runtime type → T4 GPU** (or
-whatever GPU option is offered on the free tier). Do this for every notebook you open — it doesn't
-carry over automatically between notebooks opened separately.
+**Pick the runtime deliberately — the free GPU quota is limited and it runs out.** Only notebook 04
+(YOLO) meaningfully benefits from a GPU. Run notebooks 01, 02, 03 and 05 on a plain **CPU** runtime
+(Runtime → Change runtime type → CPU), which doesn't consume GPU quota, and switch to **T4 GPU** only
+for notebook 04. The setting doesn't carry over between notebooks opened separately.
 
 ## 4. Run the notebooks in order
 
@@ -59,7 +60,9 @@ carry over automatically between notebooks opened separately.
    cleans it down to 19 verified scenes.
 2. `02_preprocessing.ipynb` — k-fold split, patch generation, Hey-Waldo patch corpus, synthetic
    copy-paste crop pool.
-3. `03_train_sliding_window.ipynb` — trains the from-scratch classifier. GPU-accelerated automatically.
+3. `03_train_sliding_window.ipynb` — trains the from-scratch classifier. A tiny CNN: fine on CPU
+   (slower than GPU, but free of GPU quota). Optional if you already have a trained
+   `sliding_window_classifier.pt` — see the note below.
 4. `04_train_yolo.ipynb` — fine-tunes YOLO with synthetic augmentation across all 5 folds. This is the
    heaviest step; GPU plus local-disk data should take it from hours down to well under an hour.
 5. `05_evaluation_error_analysis.ipynb` — final comparison and write-up.
