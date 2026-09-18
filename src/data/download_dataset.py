@@ -10,14 +10,17 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
-from roboflow import Roboflow
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 
 
 def main() -> None:
+    # Imported here, not at module top: notebook 01 imports RAW_DATA_DIR from this module even when
+    # the raw data is already present (e.g. shipped in the Kaggle package), and that path shouldn't
+    # require roboflow / python-dotenv to be installed.
+    from dotenv import load_dotenv
+    from roboflow import Roboflow
+
     load_dotenv(PROJECT_ROOT / ".env")
     api_key = os.environ["ROBOFLOW_API_KEY"]
 

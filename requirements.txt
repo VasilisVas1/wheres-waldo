@@ -2,30 +2,27 @@
 torch>=2.2
 torchvision>=0.17
 ultralytics>=8.3
-roboflow>=1.1
 
 # CV / data
-opencv-python>=4.9
 pillow>=10.0
-albumentations>=1.4
-lxml>=5.0          # Pascal VOC XML parsing
-pyyaml>=6.0        # YOLO data.yaml export
+albumentations>=2.0   # code uses the 2.x API (GaussNoise std_range, RandomResizedCrop size=)
+lxml>=5.0             # Pascal VOC XML parsing
+pyyaml>=6.0           # YOLO data.yaml export
 
 # Data science
 numpy>=1.26
 pandas>=2.2
 scikit-learn>=1.4
 matplotlib>=3.8
-seaborn>=0.13
 
 # Notebooks
 jupyterlab>=4.1
-ipywidgets>=8.1
 ipykernel>=6.29
+papermill>=2.5        # runs the notebooks unattended (kaggle/run_pipeline.py)
+
+# Only needed to download the raw dataset from Roboflow (notebook 01, when data/raw is absent)
+roboflow>=1.1
+python-dotenv>=1.0
 
 # UI / demo app
 streamlit>=1.32
-
-# Utilities
-python-dotenv>=1.0
-tqdm>=4.66

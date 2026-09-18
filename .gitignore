@@ -13,3 +13,5 @@ runs/
 .env
 .DS_Store
 *.egg-info/
+dist/
+*.zip

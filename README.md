@@ -37,9 +37,12 @@ src/
   models/            sliding-window CNN, IoU/NMS implementation
   eval/              detection metrics (precision/recall @ IoU, mAP, localization error)
 app/                 Streamlit demo app, loads the best trained model
+kaggle/              runs the (unmodified) notebooks on Kaggle -- see kaggle/README.md
 data/
   raw/               downloaded source dataset (gitignored)
   processed/         generated patches / splits (gitignored)
+Hey-Waldo/           second dataset, from Kaggle (gitignored; see Dataset)
+models/              trained weights (gitignored)
 ```
 
 ## Dataset
@@ -53,6 +56,11 @@ pipeline is built on (`data/processed/clean_manifest.csv`). With so few scenes, 
 happens via **scene-level 5-fold cross-validation** (notebook 02), not one fixed
 train/val/test split — and always at the scene level, never patch level, to avoid leakage
 between crops of the same image.
+
+The same 19 scenes also come from a second source,
+[Hey-Waldo](https://www.kaggle.com/datasets/residentmario/wheres-waldo) (place it at `Hey-Waldo/`).
+Roboflow supplies the bounding-box annotations; Hey-Waldo supplies the native-resolution scans and
+~3,000 extra human-curated classification patches for the sliding-window model (notebook 02, Part 2).
 
 ## Setup
 
@@ -71,6 +79,9 @@ jupyter lab
 Work through `notebooks/01_...` to `notebooks/05_...` in order — each stage depends
 on artifacts produced by the previous one (raw data → patches/splits → trained
 sliding-window model → trained YOLO model → evaluation).
+
+Training (notebooks 03–04) is heavy for a CPU; run the whole pipeline on Kaggle's free GPU instead.
+The notebooks are identical in both places — see [kaggle/README.md](kaggle/README.md).
 
 ## Running the demo app
 
