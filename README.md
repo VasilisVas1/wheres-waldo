@@ -16,17 +16,17 @@ Waldo is about **0.14% of a page** and hides among hundreds of look-alikes. This
 him, compares them honestly on pages they have never seen, and wraps the best one in a Streamlit app that shows you
 **where to look** — as ranked, zoomed-in candidates.
 
-- 🧠 **A detector written from scratch** — sliding-window CNN, IoU and non-max suppression, all hand-implemented.
-- 🎯 **A fine-tuned YOLO11n** — first on the whole page, then on native-resolution *tiles* (the version that works).
-- 🔬 **Honest evaluation** — scene-level 5-fold cross-validation, thresholds chosen without peeking, small-sample
+- **A detector written from scratch** — sliding-window CNN, IoU and non-max suppression, all hand-implemented.
+- **A fine-tuned YOLO11n** — first on the whole page, then on native-resolution *tiles* (the version that works).
+- **Honest evaluation** — scene-level 5-fold cross-validation, thresholds chosen without peeking, small-sample
   caveats spelled out.
-- 🕵️ **A detective story** — a data bug that hid in plain sight and was capping every result. (See
+- **A detective story** — a data bug that hid in plain sight and was capping every result. (See
   [the case of the misplaced Waldos](#misplaced-waldos).)
-- 🖥️ **A themed demo app** — upload a page, get the top suspects, each shown up close.
+- **A themed demo app** — upload a page, get the top suspects, each shown up close.
 
 ---
 
-## 📑 Contents
+## Contents
 
 [Results](#results) · [Field notes](#field-notes) · [How it works](#how-it-works) ·
 [Quick start](#quick-start) · [Reproduce everything](#reproduce) · [The notebooks](#notebooks) ·
@@ -37,7 +37,7 @@ him, compares them honestly on pages they have never seen, and wraps the best on
 
 <a id="results"></a>
 
-## 🏆 Results at a glance
+## Results at a glance
 
 Everything is scored with **scene-level 5-fold cross-validation**: each of the 19 scenes is judged by a model that
 never saw it in training (a box counts as a hit at IoU ≥ 0.3). There are **21 Waldo boxes in 18 scenes** that contain
@@ -71,7 +71,7 @@ synthetic data.
 
 <a id="field-notes"></a>
 
-## 🧭 Field notes from actually using it
+## Field notes from actually using it
 
 *Informal impressions from the author's own use of the demo — not a measured benchmark, and the demo's model was
 trained on all 19 pages, so judge it on pages it hasn't seen.*
@@ -86,16 +86,16 @@ trained on all 19 pages, so judge it on pages it hasn't seen.*
 
 <a id="how-it-works"></a>
 
-## ⚙️ How it works
+## How it works
 
 ```mermaid
 flowchart LR
-    A["📖 Roboflow annotations<br/>65 images → 19 clean scenes"] --> C
-    B["🖼️ Hey-Waldo native-resolution scans<br/>+ ~3,000 extra patches"] --> C
-    C["🧭 Align orientation<br/>8 of 19 pages were flipped/rotated"] --> D
-    D["✂️ 640×640 tiles<br/>+ copy-paste Waldos"] --> E["🎯 Fine-tune YOLO11n"]
-    E --> F["🔍 Scan the whole page<br/>3 scales, merge with NMS"]
-    F --> G["🏅 Ranked candidates<br/>+ zoomed close-ups"]
+    A["Roboflow annotations<br/>65 images → 19 clean scenes"] --> C
+    B["Hey-Waldo native-resolution scans<br/>+ ~3,000 extra patches"] --> C
+    C["Align orientation<br/>8 of 19 pages were flipped/rotated"] --> D
+    D["640×640 tiles<br/>+ copy-paste Waldos"] --> E["🎯 Fine-tune YOLO11n"]
+    E --> F[" Scan the whole page<br/>3 scales, merge with NMS"]
+    F --> G[" Ranked candidates<br/>+ zoomed close-ups"]
 ```
 
 **Why tiles?** The public dataset ships every page stretched to 640×640, which squeezes Waldo to ~18×35 px (median) —
@@ -109,15 +109,15 @@ hand-written NMS.
 
 | | What it is | Why it's here |
 |---|---|---|
-| 🧱 **Sliding-window CNN** | A 98k-parameter CNN that says "Waldo / not Waldo" for a 64×64 crop, slid across the page at 5 sizes | Built from scratch so IoU, NMS and windowing are visible in code, not hidden in a framework |
-| 🖼️ **Whole-page YOLO** | YOLO11n fine-tuned on the page shrunk to 640×640 | The obvious framework baseline |
-| 🎯 **Tiled YOLO** | The same YOLO11n on native-resolution tiles, optionally at several scales | The fix for "Waldo is too small to see" — the best result |
+| **Sliding-window CNN** | A 98k-parameter CNN that says "Waldo / not Waldo" for a 64×64 crop, slid across the page at 5 sizes | Built from scratch so IoU, NMS and windowing are visible in code, not hidden in a framework |
+| **Whole-page YOLO** | YOLO11n fine-tuned on the page shrunk to 640×640 | The obvious framework baseline |
+| **Tiled YOLO** | The same YOLO11n on native-resolution tiles, optionally at several scales | The fix for "Waldo is too small to see" — the best result |
 
 ---
 
 <a id="quick-start"></a>
 
-## 🚀 Quick start
+## Quick start
 
 **Try the demo** — the trained weights are included in `models/`, so there is nothing to train.
 
@@ -152,7 +152,7 @@ Your browser opens on `http://localhost:8501`. Then:
 4. **Not seeing Waldo? Raise "Show at most this many candidates"** (up to 10) and look through the close-ups — he is
    not always in the first three. [Here's what that looks like.](#what-youll-see)
 
-> 💡 **Test on a page the model hasn't seen.** The included tiled model was trained on all 19 pages of the dataset, so
+> **Test on a page the model hasn't seen.** The included tiled model was trained on all 19 pages of the dataset, so
 > those pages will look better than they should.
 >
 > Run the app **from the project root** so the theme in `.streamlit/config.toml` applies. The headings use web fonts
@@ -160,7 +160,7 @@ Your browser opens on `http://localhost:8501`. Then:
 
 <a id="what-youll-see"></a>
 
-### 🖼️ What you'll see — and why "top 3" isn't always enough
+### What you'll see — and why "top 3" isn't always enough
 
 <p align="center">
   <img src="docs/images/app-overview.png" width="900" alt="The Where's Waldo demo app: a striped header with a waving cartoon Waldo, a file uploader, a detector picker, and the page next to the search result with numbered boxes">
@@ -199,7 +199,7 @@ So, in practice:
 
 <a id="reproduce"></a>
 
-## 🔁 Reproduce everything
+## Reproduce everything
 
 The trained weights are committed, but every number in this README can be regenerated. It takes **roughly 9–10 hours
 on a CPU-only laptop**, so it is designed to run unattended.
@@ -252,7 +252,7 @@ resumes. Note that notebooks are executed **in place**: re-running overwrites th
 
 <a id="notebooks"></a>
 
-## 📓 The notebooks
+## The notebooks
 
 Each notebook is written as a narrative: *what we're testing, why, what we saw, and what it means for the next step.*
 They are saved **with their outputs**, so you can read the whole story on GitHub without running anything.
@@ -272,7 +272,7 @@ They are saved **with their outputs**, so you can read the whole story on GitHub
 
 <a id="misplaced-waldos"></a>
 
-## 🕵️ The case of the misplaced Waldos
+## The case of the misplaced Waldos
 
 Notebook 05's first attempt looked… bad. Waldo landed in the top 10 for only **4 of 18** pages, and the model's most
 *confident* "false positives" turned out to be striking Waldo look-alikes. Something was off with the labels, not the
@@ -294,7 +294,7 @@ notebook 06: verify labels on every example, not a sample.
 
 <a id="layout"></a>
 
-## 🗂️ Repository layout
+## Repository layout
 
 ```
 .
@@ -320,7 +320,7 @@ Generated at run time and not committed: `data/` (raw + processed), `Hey-Waldo/`
 
 <a id="limitations"></a>
 
-## ⚠️ Limitations (read before trusting anything)
+## Limitations (read before trusting anything)
 
 - **Tiny evaluation set.** 21 boxes in 18 scenes: every number has wide error bars, and single detections swing results.
 - **Multi-scale was chosen on the test pages.** The scale set (0.75/1/1.5) was picked from four variants using the same
@@ -340,7 +340,7 @@ Generated at run time and not committed: `data/` (raw + processed), `Hey-Waldo/`
 
 <a id="credits"></a>
 
-## 🙏 Credits & licensing
+## Credits & licensing
 
 - **Code:** [MIT](LICENSE).
 - **Where's Waldo? / Where's Wally?** is created by Martin Handford and published by Walker Books / Candlewick Press.
@@ -358,4 +358,3 @@ Generated at run time and not committed: `data/` (raw + processed), `Hey-Waldo/`
 - **Built with:** PyTorch, Ultralytics, albumentations, scikit-learn, pandas, Streamlit and Jupyter.
 
 <p align="center">🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪</p>
-<p align="center"><i>Psst — a tiny Waldo is hiding in the bottom-right corner of the demo app. Did you find him? 🔍</i></p>
