@@ -167,8 +167,7 @@ Your browser opens on `http://localhost:8501`. Then:
   <br><sub>Upload a page, pick a detector, click <b>Find Waldo!</b>. Boxes are numbered by confidence.</sub>
 </p>
 
-**When it works: Waldo is candidate #1.** On this page the best guess (88% confident) is Waldo himself, up in the
-trees — the close-up makes him easy to confirm without zooming into the full page:
+**Waldo is not always candidate #1.** On this page the best guess (88% confident) is Wenda not Waldo himself, but the second candidate is the real Waldo, the close-up makes him easy to confirm without zooming into the full page:
 
 <p align="center">
   <img src="docs/images/giants-page-search.webp" width="49%" alt="A busy fantasy scene with three numbered candidate boxes drawn on it">
