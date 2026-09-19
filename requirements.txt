@@ -25,3 +25,4 @@ python-dotenv>=1.0
 
 # UI / demo app
 streamlit>=1.32
+pytest

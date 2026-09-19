@@ -7,6 +7,7 @@ Run with: streamlit run app/main.py
 
 from __future__ import annotations
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -20,6 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.data.patch_generation import PATCH_SIZE
+from src.data.tiling import OVERLAP, TILE, predict_tiled, tile_grid
 from src.eval.box_utils import non_max_suppression
 from src.models.patch_classifier import PatchClassifier
 from src.models.sliding_window import DEFAULT_WINDOW_SIZES, windows_for_scale
@@ -30,9 +32,9 @@ MODELS_DIR = PROJECT_ROOT / "models"
 st.set_page_config(page_title="Finding Waldo", layout="wide")
 st.title("🔍 Finding Waldo")
 st.caption(
-    "A from-scratch sliding-window CNN and a fine-tuned YOLO, each trained on 15 of 19 scenes. "
-    "Experimental: in cross-validation the CNN finds Waldo in ~4 of 10 held-out scenes but buries him among "
-    "hundreds of false boxes; YOLO shows few false boxes but finds him in only ~1 of 5."
+    "Three ways to find Waldo: YOLO run over native-resolution tiles (best), a from-scratch sliding-window CNN, "
+    "and YOLO on the whole shrunken scene. Scores from cross-validation on held-out scenes are in "
+    "`notebooks/05` and `06`; Waldo is genuinely hard to find and none of these are perfect."
 )
 
 
@@ -55,6 +57,18 @@ def load_yolo_model():
     from ultralytics import YOLO
 
     return YOLO(str(path))
+
+
+@st.cache_resource
+def load_tiled_yolo():
+    path = MODELS_DIR / "yolo_tiled_detector.pt"
+    if not path.exists():
+        return None, {}
+    from ultralytics import YOLO
+
+    config_path = MODELS_DIR / "yolo_tiled_config.json"
+    config = json.loads(config_path.read_text()) if config_path.exists() else {}
+    return YOLO(str(path)), config
 
 
 def draw_boxes(image: Image.Image, boxes_with_scores: list[tuple[tuple, float]], color: str) -> Image.Image:
@@ -113,8 +127,9 @@ def run_sliding_window_live(model: PatchClassifier, image: Image.Image, score_th
 
 sw_model = load_sliding_window_model()
 yolo_model = load_yolo_model()
+tiled_model, tiled_config = load_tiled_yolo()
 
-if sw_model is None and yolo_model is None:
+if sw_model is None and yolo_model is None and tiled_model is None:
     st.warning(
         "No trained models found in `models/`. Run notebooks 03 and 04 first to produce "
         "`sliding_window_classifier.pt` and `yolo_detector.pt`."
@@ -122,7 +137,16 @@ if sw_model is None and yolo_model is None:
 
 uploaded = st.file_uploader("Upload a Where's Waldo scene", type=["jpg", "jpeg", "png"])
 
-available_models = [name for name, m in [("Sliding-window CNN (from scratch)", sw_model), ("YOLO (fine-tuned)", yolo_model)] if m is not None]
+TILED_NAME = "YOLO on native-resolution tiles"
+available_models = [
+    name
+    for name, m in [
+        (TILED_NAME, tiled_model),
+        ("Sliding-window CNN (from scratch)", sw_model),
+        ("YOLO on the whole shrunken scene", yolo_model),
+    ]
+    if m is not None
+]
 model_choice = st.radio("Model", available_models, horizontal=True) if available_models else None
 
 if uploaded is not None and model_choice is not None:
@@ -136,7 +160,25 @@ if uploaded is not None and model_choice is not None:
         st.subheader("Result")
         placeholder = st.empty()
 
-        if model_choice.startswith("Sliding-window"):
+        if model_choice == TILED_NAME:
+            st.caption(
+                f"Scans the image in overlapping {TILE}px tiles at full resolution, so Waldo keeps his pixels. "
+                "Works best on full-size scans (1,300px+ wide); a small web image gives him too few pixels."
+            )
+            default_conf = float(tiled_config.get("conf", 0.25))
+            conf = st.slider("Minimum confidence", 0.05, 0.95, min(max(default_conf, 0.05), 0.95), 0.05)
+            top_n = st.slider("Show at most this many candidates", 1, 10, 3)
+            if st.button("Search for Waldo"):
+                n_tiles = len(tile_grid(image.width, image.height))
+                with st.spinner(f"Scanning {n_tiles} tiles..."):
+                    detections = predict_tiled(tiled_model, image, conf=conf, overlap=OVERLAP)[:top_n]
+                result = draw_boxes(image, detections, color="red")
+                placeholder.image(
+                    result,
+                    caption=f"{len(detections)} candidate(s), most confident first (scores shown on the boxes)",
+                    use_container_width=True,
+                )
+        elif model_choice.startswith("Sliding-window"):
             score_threshold = st.slider("Detection confidence threshold", 0.1, 0.95, 0.6, 0.05)
             if st.button("Search for Waldo"):
                 detections = run_sliding_window_live(sw_model, image, score_threshold, placeholder)

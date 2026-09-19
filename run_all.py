@@ -1,8 +1,9 @@
-"""Run notebooks 01-05 in order, unattended (e.g. overnight).
+"""Run notebooks 01-06 in order, unattended (e.g. overnight).
 
     python run_all.py --detach     # start in the background and return immediately
     python run_all.py              # run in this terminal
     python run_all.py --from 04    # resume from a notebook, e.g. after an interruption
+    python run_all.py --only 02,05 # run just these notebooks, in order
 
 Each notebook is executed in place: its outputs are saved into the .ipynb when it finishes. Stops at
 the first failure. Progress: logs/status.json and logs/<notebook>.log. Keeps Windows from
@@ -57,13 +58,19 @@ def detach() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--from", dest="start", default="01", help="first notebook number to run (default 01)")
+    parser.add_argument("--only", default="", help="comma-separated notebook numbers to run, e.g. 02,05")
     parser.add_argument("--detach", action="store_true", help="run in the background")
     args = parser.parse_args()
     if args.detach:
         detach()
         return 0
 
-    notebooks = [p for p in sorted((ROOT / "notebooks").glob("0[1-5]_*.ipynb")) if p.name[:2] >= args.start]
+    only = {n.strip().zfill(2) for n in args.only.split(",") if n.strip()}
+    notebooks = [
+        p
+        for p in sorted((ROOT / "notebooks").glob("0[1-6]_*.ipynb"))
+        if p.name[:2] >= args.start and (not only or p.name[:2] in only)
+    ]
     if not notebooks:
         print(f"No notebooks to run from '{args.start}'.")
         return 2
