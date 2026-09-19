@@ -133,8 +133,10 @@ streamlit run app/main.py
 ```
 
 Pick "YOLO on native-resolution tiles" and upload a full-size scan (1,300 px+ wide; a small web image
-gives Waldo too few pixels). It scans at three scales and outlines the top candidates, most
-confident first. Scanning takes several seconds on a CPU.
+gives Waldo too few pixels). It scans at three scales, outlines the top candidates with numbered boxes, and
+shows an enlarged close-up of each one below the scene (the best guess largest), so you don't have to zoom
+into the full image to find the box. Scanning takes several seconds on a CPU; after that, the confidence and
+"how many candidates" sliders re-filter the same scan instantly.
 
 ## Tests
 

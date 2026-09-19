@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import streamlit as st
 import torch
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -71,14 +71,89 @@ def load_tiled_yolo():
     return YOLO(str(path)), config
 
 
-def draw_boxes(image: Image.Image, boxes_with_scores: list[tuple[tuple, float]], color: str) -> Image.Image:
+def _font(size: int) -> ImageFont.ImageFont:
+    for name in ("arialbd.ttf", "arial.ttf", "DejaVuSans-Bold.ttf"):
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default(size)
+
+
+def draw_boxes(
+    image: Image.Image,
+    boxes_with_scores: list[tuple[tuple, float]],
+    color: str,
+    label_top: int | None = None,
+) -> Image.Image:
+    """Draw boxes sized for the image (a 2,000px scan needs far thicker lines than a thumbnail).
+
+    Expects detections sorted best-first; the first `label_top` (default: all) get a "#rank score" tag, the
+    rest are drawn as thin unlabelled boxes so a flood of low-value detections doesn't bury the good ones.
+    """
     out = image.copy()
     draw = ImageDraw.Draw(out)
-    for box, score in boxes_with_scores:
-        draw.rectangle(box, outline=color, width=4)
-        if score is not None:
-            draw.text((box[0], max(0, box[1] - 14)), f"{score:.2f}", fill=color)
+    line = max(4, image.width // 250)
+    font = _font(max(18, image.width // 55))
+    for rank, (box, score) in enumerate(boxes_with_scores, start=1):
+        if label_top is not None and rank > label_top:
+            draw.rectangle(box, outline=color, width=max(2, line // 2))
+            continue
+        draw.rectangle(box, outline=color, width=line)
+        tag = f"#{rank}  {score * 100:.0f}%" if score is not None else f"#{rank}"
+        left, top, right, bottom = draw.textbbox((0, 0), tag, font=font)
+        pad = 4
+        tag_x = min(max(0, box[0]), max(0, image.width - (right - left) - 2 * pad))
+        tag_y = box[1] - (bottom - top) - 2 * pad - line
+        if tag_y < 0:  # no room above the box: put the tag below it instead
+            tag_y = box[3] + line
+        draw.rectangle((tag_x, tag_y, tag_x + right - left + 2 * pad, tag_y + bottom - top + 2 * pad), fill=color)
+        draw.text((tag_x + pad - left, tag_y + pad - top), tag, fill="white", font=font)
     return out
+
+
+def zoomed_crop(image: Image.Image, box: tuple, out_px: int = 360) -> Image.Image:
+    """A square close-up around `box` with surrounding context, upscaled, with the exact box outlined."""
+    x1, y1, x2, y2 = box
+    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+    side = min(max(x2 - x1, y2 - y1, 40) * 3, image.width, image.height)
+    left = min(max(0, cx - side / 2), image.width - side)
+    top = min(max(0, cy - side / 2), image.height - side)
+    crop = image.crop((round(left), round(top), round(left + side), round(top + side))).resize(
+        (out_px, out_px), Image.LANCZOS
+    )
+    scale = out_px / side
+    ImageDraw.Draw(crop).rectangle(
+        ((x1 - left) * scale, (y1 - top) * scale, (x2 - left) * scale, (y2 - top) * scale), outline="red", width=2
+    )
+    return crop
+
+
+def show_candidates(image: Image.Image, detections: list[tuple[tuple, float]], max_show: int = 10) -> None:
+    """Gallery of enlarged crops, one per detection, numbered like the boxes on the full scene."""
+    if not detections:
+        return
+    shown = detections[:max_show]
+    st.subheader("Zoomed-in candidates")
+    st.caption(
+        "Each picture is an enlarged close-up of one box (red outline) with some surrounding context, numbered like "
+        "the boxes above. Look for the red-and-white striped shirt and bobble hat, round glasses and a cane."
+    )
+    # the best guess gets double width; the others follow at normal width (empty columns just stay empty)
+    layouts = [[2, 1, 1]] + [[1, 1, 1, 1]] * ((len(shown) - 3 + 3) // 4)
+    rank = 0
+    for spec in layouts:
+        for col in st.columns(spec):
+            if rank >= len(shown):
+                break
+            box, score = shown[rank]
+            with col:
+                st.image(
+                    zoomed_crop(image, box, out_px=640 if rank == 0 else 420),
+                    caption=f"#{rank + 1} — {score * 100:.0f}% confident" + (" (best guess)" if rank == 0 else ""),
+                    use_container_width=True,
+                )
+            rank += 1
 
 
 def run_sliding_window_live(model: PatchClassifier, image: Image.Image, score_threshold: float, placeholder):
@@ -151,6 +226,7 @@ model_choice = st.radio("Model", available_models, horizontal=True) if available
 
 if uploaded is not None and model_choice is not None:
     image = Image.open(uploaded).convert("RGB")
+    shown_detections: list[tuple[tuple, float]] = []  # whatever the chosen model found, best first
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Input scene")
@@ -165,34 +241,57 @@ if uploaded is not None and model_choice is not None:
                 f"Scans the image in overlapping {TILE}px tiles at three scales (0.75x, 1x, 1.5x), so Waldo keeps his pixels. "
                 "Works best on full-size scans (1,300px+ wide); a small web image gives him too few pixels."
             )
-            default_conf = float(tiled_config.get("conf", 0.25))
+            default_conf = float(tiled_config.get("conf", 0.05))
             conf = st.slider("Minimum confidence", 0.01, 0.95, min(max(default_conf, 0.01), 0.95), 0.01)
             top_n = st.slider("Show at most this many candidates", 1, 10, 3)
+            scan_key = f"{uploaded.name}:{uploaded.size}"
             if st.button("Search for Waldo"):
                 scales = tuple(tiled_config.get("scales", DEFAULT_SCALES))
                 n_tiles = sum(
                     len(tile_grid(round(image.width * s), round(image.height * s))) for s in scales
                 )
                 with st.spinner(f"Scanning {n_tiles} tiles at {len(scales)} scales..."):
-                    detections = predict_multiscale(tiled_model, image, scales=scales, conf=conf)[:top_n]
-                result = draw_boxes(image, detections, color="red")
-                placeholder.image(
-                    result,
-                    caption=f"{len(detections)} candidate(s), most confident first (scores shown on the boxes)",
-                    use_container_width=True,
-                )
+                    # scan once at a low floor and keep it, so the sliders below re-filter instantly
+                    st.session_state["tiled_scan"] = {
+                        "key": scan_key,
+                        "detections": predict_multiscale(tiled_model, image, scales=scales, conf=0.01),
+                    }
+            scan = st.session_state.get("tiled_scan")
+            if scan and scan["key"] == scan_key:
+                detections = [d for d in scan["detections"] if d[1] >= conf][:top_n]
+                if detections:
+                    placeholder.image(
+                        draw_boxes(image, detections, color="red"),
+                        caption=f"{len(detections)} candidate(s), most confident first",
+                        use_container_width=True,
+                    )
+                    shown_detections = detections
+                else:
+                    st.info("No candidate at this confidence — lower the minimum-confidence slider.")
         elif model_choice.startswith("Sliding-window"):
             score_threshold = st.slider("Detection confidence threshold", 0.1, 0.95, 0.6, 0.05)
             if st.button("Search for Waldo"):
-                detections = run_sliding_window_live(sw_model, image, score_threshold, placeholder)
-                result = draw_boxes(image, detections, color="red")
-                placeholder.image(result, caption=f"{len(detections)} detection(s) after NMS", use_container_width=True)
+                detections = sorted(
+                    run_sliding_window_live(sw_model, image, score_threshold, placeholder), key=lambda d: -d[1]
+                )
+                placeholder.image(
+                    draw_boxes(image, detections, color="red", label_top=5),
+                    caption=f"{len(detections)} detection(s) after NMS (the 5 most confident are numbered)",
+                    use_container_width=True,
+                )
+                shown_detections = detections
         else:
             conf = st.slider("Detection confidence threshold", 0.05, 0.95, 0.1, 0.05)
             if st.button("Search for Waldo"):
                 yolo_result = yolo_model.predict(image, conf=conf, verbose=False)[0]
-                detections = [
-                    (tuple(b.xyxy[0].tolist()), b.conf.item()) for b in yolo_result.boxes
-                ]
-                result = draw_boxes(image, detections, color="red")
-                placeholder.image(result, caption=f"{len(detections)} detection(s)", use_container_width=True)
+                detections = sorted(
+                    ((tuple(b.xyxy[0].tolist()), b.conf.item()) for b in yolo_result.boxes), key=lambda d: -d[1]
+                )
+                placeholder.image(
+                    draw_boxes(image, detections, color="red"),
+                    caption=f"{len(detections)} detection(s)",
+                    use_container_width=True,
+                )
+                shown_detections = detections
+
+    show_candidates(image, shown_detections)
