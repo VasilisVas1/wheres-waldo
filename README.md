@@ -1,55 +1,75 @@
 # Finding Waldo — CV Object Localization + Live Demo
 
 A from-scratch computer vision project that finds Waldo (Wally) hidden inside dense,
-cluttered "Where's Waldo?" scenes. Two detectors are built and compared:
+cluttered "Where's Waldo?" scenes. Three detectors are built and compared:
 
 1. **Sliding-window CNN classifier** (`src/models/patch_classifier.py`) — a binary
    "is this crop Waldo or not?" CNN, slid across a full scene at multiple scales to
    build a heatmap, then thresholded and reduced with hand-implemented non-max
    suppression. Built from scratch so the mechanics of detection (IoU, NMS, sliding
    windows) are visible in code, not hidden behind a framework call.
-2. **YOLO fine-tune** (`ultralytics`) — a modern one-stage detector fine-tuned on the
-   same data, compared honestly against the sliding-window baseline.
+2. **YOLO11n on the whole scene** (`ultralytics`) — the scene shrunk to 640×640, as a
+   framework-based baseline.
+3. **YOLO11n on native-resolution tiles** (`src/data/tiling.py`) — the same model, but trained
+   and run on overlapping 640×640 tiles cut from the full-size scans, optionally at several
+   image scales. This is the best detector here.
 
-Both are wrapped in a Streamlit app that runs inference on a new scene and animates
-the search — from raw pixels to a bounding box.
+All are wrapped in a Streamlit app that runs inference on a new scene.
 
-**Current status, honestly:** neither model is a reliable Waldo finder yet. The source
-dataset only yields 19 clean, hand-verified scenes after data cleaning (see notebook 01);
-adding Hey-Waldo patches and copy-paste synthetic scenes helped, but not enough. Measured with
-scene-level 5-fold cross-validation (IoU ≥ 0.3, 21 Waldo boxes in 19 scenes):
+## Current status, honestly
+
+The tiled YOLO finds Waldo more often than not, but it is not a reliable finder. Measured with
+scene-level 5-fold cross-validation (every scene scored by a model that never trained on it;
+IoU ≥ 0.3; 21 Waldo boxes in 18 scenes that contain him):
 
 | model | found | false positives | missed | precision | recall |
 |---|---|---|---|---|---|
 | Sliding-window CNN (from scratch) | 8 | 4,203 | 13 | 0.002 | 0.38 |
-| YOLO11n (fine-tuned, `conf=0.1`) | 4 | 34 | 17 | 0.105 | 0.19 |
+| YOLO11n, whole scene at 640 px | 2 | 22 | 19 | 0.083 | 0.095 |
+| YOLO11n, native tiles | 6 | 0 | 15 | 1.00 | 0.29 |
+| YOLO11n, native tiles, multi-scale | 7 | 14 | 14 | 0.33 | 0.33 |
 
-The CNN finds Waldo more often but buries him under thousands of false boxes; YOLO is far
-quieter and ~50× faster, but misses about four in five. Nine scenes are missed by both. With
-only 21 boxes and an untuned YOLO threshold these numbers are low-confidence. Both failure
-modes are diagnosed in notebooks 03–05. The demo app runs end to end (its YOLO model is the
-best-scoring fold, trained on 15 of the 19 scenes). See notebook 05's write-up for the full
-comparison and the next steps most likely to help (more real scenes, native-resolution tiling,
-a properly tuned YOLO threshold).
+The most useful readout is ranking — *is Waldo among the detector's top-k boxes?* — since a puzzle
+has one Waldo. For the tiled YOLO with multi-scale scanning he is the **#1 box in 10 of 18 scenes,
+in the top 3 in 13 (72%), and in the top 10 in 14**. The demo therefore shows the top few candidates.
+
+Things to know before trusting any of this:
+
+- Only 21 boxes / 18 scenes, so every number has wide error bars (re-running the whole-scene YOLO
+  swung it from 4 hits to 2).
+- The multi-scale variant was picked out of four on the same scenes, so it is somewhat optimistic.
+- Three annotated "Waldos" are Waldo portraits on postcard stamps, not hidden figures.
+- The demo's tiled model is trained on all 19 scenes, so there is nothing held out to score it on;
+  the cross-validated numbers are the estimate of how it should behave.
+- Scenes 2, 3 and 13 are never found at confidence ≥ 0.01, and I haven't worked out why.
+
+**A data bug worth knowing about.** Roboflow's export flipped or rotated 8 of the 19 pages relative to
+the Hey-Waldo scans. Mapping its boxes onto the scans by rescaling alone put the "ground truth" on the
+wrong content for those scenes, which capped every native-resolution result until notebook 02 learned to
+detect each page's orientation (and refuse to continue without a clear match). Fixing it took the tiled
+YOLO from "Waldo in the top-10 for 4 of 18 scenes" to 10 of 18 with the same training recipe.
+Full write-up: notebook 06.
 
 ## Project structure
 
 ```
-notebooks/          five pipeline stages, each with markdown explaining *why*
+notebooks/          six pipeline stages, each with markdown explaining *why*
   01_data_exploration.ipynb
-  02_preprocessing.ipynb
+  02_preprocessing.ipynb           (also: native-scan alignment, crop pool)
   03_train_sliding_window.ipynb
-  04_train_yolo.ipynb
-  05_evaluation_error_analysis.ipynb
+  04_train_yolo.ipynb              (whole-scene YOLO baseline)
+  05_tiled_yolo.ipynb              (native-resolution tiles; the best detector)
+  06_evaluation_error_analysis.ipynb
 src/
-  data/              dataset loading, tiling/patch generation, augmentation
+  data/              dataset loading, patches, augmentation, native alignment, tiling
   models/            sliding-window CNN, IoU/NMS implementation
-  eval/              detection metrics (precision/recall @ IoU, mAP, localization error)
-app/                 Streamlit demo app, loads the best trained model
-run_all.py           runs notebooks 01-05 unattended (e.g. overnight)
+  eval/              detection metrics (precision/recall @ IoU, localization error)
+tests/               box-mapping tests for the native-scan alignment
+app/                 Streamlit demo app
+run_all.py           runs the notebooks unattended (e.g. overnight)
 data/
   raw/               downloaded source dataset (gitignored)
-  processed/         generated patches / splits (gitignored)
+  processed/         generated patches / splits / results (gitignored)
 Hey-Waldo/           second dataset, from Kaggle (gitignored; see Dataset)
 models/              trained weights (gitignored)
 ```
@@ -68,8 +88,9 @@ between crops of the same image.
 
 The same 19 scenes also come from a second source,
 [Hey-Waldo](https://www.kaggle.com/datasets/residentmario/wheres-waldo) (place it at `Hey-Waldo/`).
-Roboflow supplies the bounding-box annotations; Hey-Waldo supplies the native-resolution scans and
-~3,000 extra human-curated classification patches for the sliding-window model (notebook 02, Part 2).
+Roboflow supplies the bounding-box annotations (in its own 640×640, sometimes flipped/rotated, images);
+Hey-Waldo supplies the native-resolution scans and ~3,000 extra classification patches for the
+sliding-window model. Notebook 02 aligns the two (see the data-bug note above).
 
 ## Setup
 
@@ -85,25 +106,38 @@ pip install -r requirements.txt
 jupyter lab
 ```
 
-Work through `notebooks/01_...` to `notebooks/05_...` in order — each stage depends
-on artifacts produced by the previous one (raw data → patches/splits → trained
-sliding-window model → trained YOLO model → evaluation).
+Work through `notebooks/01_...` to `notebooks/06_...` in order — each stage depends
+on artifacts produced by the previous one (raw data → patches/splits/aligned scans → trained
+sliding-window model → whole-scene YOLO → tiled YOLO → evaluation).
 
 ### Running everything unattended
 
-Training (notebooks 03–04) takes hours on a CPU, so run the whole pipeline in the background:
+Training (notebooks 03–05) takes hours on a CPU (roughly 4–5 h for notebook 05 alone on a laptop), so run
+the pipeline in the background:
 
 ```bash
-python run_all.py --detach      # notebooks 01 -> 05 in order; stops at the first failure
-python run_all.py --from 04     # resume from a notebook (e.g. after an interruption)
+python run_all.py --detach       # notebooks 01 -> 06 in order; stops at the first failure
+python run_all.py --from 04      # resume from a notebook (e.g. after an interruption)
+python run_all.py --only 05,06   # run just these notebooks
 ```
 
 It keeps Windows from idle-sleeping while it runs (closing the lid can still sleep the machine, so
 leave it open and plugged in). Progress is in `logs/status.json` and `logs/<notebook>.log`; each
-notebook is saved in place with its outputs when it finishes.
+notebook is saved in place with its outputs when it finishes. Notebooks 04 and 05 skip folds that
+already finished training, so an interrupted run resumes.
 
 ## Running the demo app
 
 ```bash
 streamlit run app/main.py
+```
+
+Pick "YOLO on native-resolution tiles" and upload a full-size scan (1,300 px+ wide; a small web image
+gives Waldo too few pixels). It scans at three scales and outlines the top candidates, most
+confident first. Scanning takes several seconds on a CPU.
+
+## Tests
+
+```bash
+python -m pytest tests
 ```

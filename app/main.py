@@ -21,7 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.data.patch_generation import PATCH_SIZE
-from src.data.tiling import OVERLAP, TILE, predict_tiled, tile_grid
+from src.data.tiling import DEFAULT_SCALES, TILE, predict_multiscale, tile_grid
 from src.eval.box_utils import non_max_suppression
 from src.models.patch_classifier import PatchClassifier
 from src.models.sliding_window import DEFAULT_WINDOW_SIZES, windows_for_scale
@@ -162,16 +162,19 @@ if uploaded is not None and model_choice is not None:
 
         if model_choice == TILED_NAME:
             st.caption(
-                f"Scans the image in overlapping {TILE}px tiles at full resolution, so Waldo keeps his pixels. "
+                f"Scans the image in overlapping {TILE}px tiles at three scales (0.75x, 1x, 1.5x), so Waldo keeps his pixels. "
                 "Works best on full-size scans (1,300px+ wide); a small web image gives him too few pixels."
             )
             default_conf = float(tiled_config.get("conf", 0.25))
-            conf = st.slider("Minimum confidence", 0.05, 0.95, min(max(default_conf, 0.05), 0.95), 0.05)
+            conf = st.slider("Minimum confidence", 0.01, 0.95, min(max(default_conf, 0.01), 0.95), 0.01)
             top_n = st.slider("Show at most this many candidates", 1, 10, 3)
             if st.button("Search for Waldo"):
-                n_tiles = len(tile_grid(image.width, image.height))
-                with st.spinner(f"Scanning {n_tiles} tiles..."):
-                    detections = predict_tiled(tiled_model, image, conf=conf, overlap=OVERLAP)[:top_n]
+                scales = tuple(tiled_config.get("scales", DEFAULT_SCALES))
+                n_tiles = sum(
+                    len(tile_grid(round(image.width * s), round(image.height * s))) for s in scales
+                )
+                with st.spinner(f"Scanning {n_tiles} tiles at {len(scales)} scales..."):
+                    detections = predict_multiscale(tiled_model, image, scales=scales, conf=conf)[:top_n]
                 result = draw_boxes(image, detections, color="red")
                 placeholder.image(
                     result,

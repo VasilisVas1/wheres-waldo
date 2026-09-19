@@ -27,7 +27,7 @@ from src.data.synthetic_compositing import composite_synthetic_scene, extract_cr
 from src.eval.box_utils import non_max_suppression
 
 TILE = 640
-OVERLAP = 240  # >= the largest Waldo box (~215 px), so every Waldo lies fully inside at least one tile
+OVERLAP = 240  # >= the largest Waldo box (~195 px), so every Waldo lies fully inside at least one tile
 
 
 def tile_grid(width: int, height: int, tile: int = TILE, overlap: int = OVERLAP) -> list[tuple[int, int, int, int]]:
@@ -215,3 +215,32 @@ def predict_tiled(
     keep = non_max_suppression(np.array(boxes), np.array(scores), iou_threshold=nms_iou)
     kept = [(tuple(boxes[j]), scores[j]) for j in keep]
     return sorted(kept, key=lambda d: -d[1])
+
+
+DEFAULT_SCALES = (0.75, 1.0, 1.5)
+
+
+def predict_multiscale(
+    model,
+    image: Image.Image,
+    scales: tuple[float, ...] = DEFAULT_SCALES,
+    conf: float = 0.01,
+    nms_iou: float = 0.4,
+    **kwargs,
+) -> list[tuple[tuple[float, float, float, float], float]]:
+    """`predict_tiled` at several image scales, boxes mapped back to the original image and merged with NMS.
+
+    Waldo's native size varies ~5x across scans (25-140 px wide) but the model is trained mostly around one
+    scale; scanning a slightly shrunk and a slightly enlarged copy lets the same model see him at a size it knows.
+    """
+    image = image.convert("RGB")
+    boxes, scores = [], []
+    for s in scales:
+        scaled = image if s == 1.0 else image.resize((round(image.width * s), round(image.height * s)), Image.LANCZOS)
+        for (x1, y1, x2, y2), score in predict_tiled(model, scaled, conf=conf, nms_iou=nms_iou, **kwargs):
+            boxes.append((x1 / s, y1 / s, x2 / s, y2 / s))
+            scores.append(score)
+    if not boxes:
+        return []
+    keep = non_max_suppression(np.array(boxes), np.array(scores), iou_threshold=nms_iou)
+    return sorted([(tuple(boxes[j]), scores[j]) for j in keep], key=lambda d: -d[1])
