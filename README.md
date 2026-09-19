@@ -65,7 +65,8 @@ src/
   models/            sliding-window CNN, IoU/NMS implementation
   eval/              detection metrics (precision/recall @ IoU, localization error)
 tests/               box-mapping tests for the native-scan alignment
-app/                 Streamlit demo app
+app/                 Streamlit demo app (main.py) and its Waldo-storybook look (waldo_theme.py)
+.streamlit/           Streamlit theme colours (run the app from the project root so they apply)
 run_all.py           runs the notebooks unattended (e.g. overnight)
 data/
   raw/               downloaded source dataset (gitignored)
@@ -136,7 +137,8 @@ Pick "YOLO on native-resolution tiles" and upload a full-size scan (1,300 px+ wi
 gives Waldo too few pixels). It scans at three scales, outlines the top candidates with numbered boxes, and
 shows an enlarged close-up of each one below the scene (the best guess largest), so you don't have to zoom
 into the full image to find the box. Scanning takes several seconds on a CPU; after that, the confidence and
-"how many candidates" sliders re-filter the same scan instantly.
+"how many candidates" sliders re-filter the same scan instantly. The page is styled like a Where's Waldo
+book (red-and-white stripes, a waving cartoon Waldo, and one tiny Waldo hiding in the bottom-right corner).
 
 ## Tests
 

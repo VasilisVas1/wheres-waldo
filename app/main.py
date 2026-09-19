@@ -19,6 +19,15 @@ from PIL import Image, ImageDraw, ImageFont
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from waldo_theme import (
+    apply_theme_html,
+    hero_html,
+    hidden_waldo_html,
+    stripes_divider_html,
+    verdict_html,
+)
 
 from src.data.patch_generation import PATCH_SIZE
 from src.data.tiling import DEFAULT_SCALES, TILE, predict_multiscale, tile_grid
@@ -29,8 +38,9 @@ from src.data.patch_dataset import to_tensor
 
 MODELS_DIR = PROJECT_ROOT / "models"
 
-st.set_page_config(page_title="Finding Waldo", layout="wide")
-st.title("🔍 Finding Waldo")
+st.set_page_config(page_title="Where's Waldo?", page_icon="🔍", layout="wide")
+st.markdown(apply_theme_html(), unsafe_allow_html=True)
+st.markdown(hero_html(), unsafe_allow_html=True)
 st.caption(
     "Three ways to find Waldo: YOLO run over native-resolution tiles (best), a from-scratch sliding-window CNN, "
     "and YOLO on the whole shrunken scene. Scores from cross-validation on held-out scenes are in "
@@ -134,7 +144,8 @@ def show_candidates(image: Image.Image, detections: list[tuple[tuple, float]], m
     if not detections:
         return
     shown = detections[:max_show]
-    st.subheader("Zoomed-in candidates")
+    st.markdown(stripes_divider_html(), unsafe_allow_html=True)
+    st.subheader("The usual suspects, up close")
     st.caption(
         "Each picture is an enlarged close-up of one box (red outline) with some surrounding context, numbered like "
         "the boxes above. Look for the red-and-white striped shirt and bobble hat, round glasses and a cane."
@@ -210,7 +221,7 @@ if sw_model is None and yolo_model is None and tiled_model is None:
         "`sliding_window_classifier.pt` and `yolo_detector.pt`."
     )
 
-uploaded = st.file_uploader("Upload a Where's Waldo scene", type=["jpg", "jpeg", "png"])
+uploaded = st.file_uploader("Drop in a page from a Where's Waldo book", type=["jpg", "jpeg", "png"])
 
 TILED_NAME = "YOLO on native-resolution tiles"
 available_models = [
@@ -222,18 +233,18 @@ available_models = [
     ]
     if m is not None
 ]
-model_choice = st.radio("Model", available_models, horizontal=True) if available_models else None
+model_choice = st.radio("Who should do the looking?", available_models, horizontal=True) if available_models else None
 
 if uploaded is not None and model_choice is not None:
     image = Image.open(uploaded).convert("RGB")
     shown_detections: list[tuple[tuple, float]] = []  # whatever the chosen model found, best first
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Input scene")
+        st.subheader("The page")
         st.image(image, use_container_width=True)
 
     with col2:
-        st.subheader("Result")
+        st.subheader("The search")
         placeholder = st.empty()
 
         if model_choice == TILED_NAME:
@@ -245,12 +256,12 @@ if uploaded is not None and model_choice is not None:
             conf = st.slider("Minimum confidence", 0.01, 0.95, min(max(default_conf, 0.01), 0.95), 0.01)
             top_n = st.slider("Show at most this many candidates", 1, 10, 3)
             scan_key = f"{uploaded.name}:{uploaded.size}"
-            if st.button("Search for Waldo"):
+            if st.button("Find Waldo!", type="primary"):
                 scales = tuple(tiled_config.get("scales", DEFAULT_SCALES))
                 n_tiles = sum(
                     len(tile_grid(round(image.width * s), round(image.height * s))) for s in scales
                 )
-                with st.spinner(f"Scanning {n_tiles} tiles at {len(scales)} scales..."):
+                with st.spinner(f"Peering into the crowd... {n_tiles} tiles at {len(scales)} scales"):
                     # scan once at a low floor and keep it, so the sliders below re-filter instantly
                     st.session_state["tiled_scan"] = {
                         "key": scan_key,
@@ -260,6 +271,7 @@ if uploaded is not None and model_choice is not None:
             if scan and scan["key"] == scan_key:
                 detections = [d for d in scan["detections"] if d[1] >= conf][:top_n]
                 if detections:
+                    st.markdown(verdict_html(detections[0][1]), unsafe_allow_html=True)
                     placeholder.image(
                         draw_boxes(image, detections, color="red"),
                         caption=f"{len(detections)} candidate(s), most confident first",
@@ -267,10 +279,10 @@ if uploaded is not None and model_choice is not None:
                     )
                     shown_detections = detections
                 else:
-                    st.info("No candidate at this confidence — lower the minimum-confidence slider.")
+                    st.markdown(verdict_html(None), unsafe_allow_html=True)
         elif model_choice.startswith("Sliding-window"):
             score_threshold = st.slider("Detection confidence threshold", 0.1, 0.95, 0.6, 0.05)
-            if st.button("Search for Waldo"):
+            if st.button("Find Waldo!", type="primary"):
                 detections = sorted(
                     run_sliding_window_live(sw_model, image, score_threshold, placeholder), key=lambda d: -d[1]
                 )
@@ -282,7 +294,7 @@ if uploaded is not None and model_choice is not None:
                 shown_detections = detections
         else:
             conf = st.slider("Detection confidence threshold", 0.05, 0.95, 0.1, 0.05)
-            if st.button("Search for Waldo"):
+            if st.button("Find Waldo!", type="primary"):
                 yolo_result = yolo_model.predict(image, conf=conf, verbose=False)[0]
                 detections = sorted(
                     ((tuple(b.xyxy[0].tolist()), b.conf.item()) for b in yolo_result.boxes), key=lambda d: -d[1]
@@ -295,3 +307,5 @@ if uploaded is not None and model_choice is not None:
                 shown_detections = detections
 
     show_candidates(image, shown_detections)
+
+st.markdown(hidden_waldo_html(), unsafe_allow_html=True)
