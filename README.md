@@ -1,147 +1,321 @@
-# Finding Waldo — CV Object Localization + Live Demo
+<h1 align="center">🔴⚪ Where's Waldo? 🔴⚪</h1>
 
-A from-scratch computer vision project that finds Waldo (Wally) hidden inside dense,
-cluttered "Where's Waldo?" scenes. Three detectors are built and compared:
+<p align="center"><b>A computer-vision search party: teaching neural networks to spot the world's most elusive striped man.</b></p>
 
-1. **Sliding-window CNN classifier** (`src/models/patch_classifier.py`) — a binary
-   "is this crop Waldo or not?" CNN, slid across a full scene at multiple scales to
-   build a heatmap, then thresholded and reduced with hand-implemented non-max
-   suppression. Built from scratch so the mechanics of detection (IoU, NMS, sliding
-   windows) are visible in code, not hidden behind a framework call.
-2. **YOLO11n on the whole scene** (`ultralytics`) — the scene shrunk to 640×640, as a
-   framework-based baseline.
-3. **YOLO11n on native-resolution tiles** (`src/data/tiling.py`) — the same model, but trained
-   and run on overlapping 640×640 tiles cut from the full-size scans, optionally at several
-   image scales. This is the best detector here.
+<p align="center">
+  <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-blue">
+  <img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white">
+  <img alt="Ultralytics YOLO11" src="https://img.shields.io/badge/Ultralytics-YOLO11-00A6D6">
+  <img alt="Streamlit" src="https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green">
+</p>
 
-All are wrapped in a Streamlit app that runs inference on a new scene.
+<p align="center">🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪</p>
 
-## Current status, honestly
+Waldo is about **0.14% of a page** and hides among hundreds of look-alikes. This project builds three detectors for
+him, compares them honestly on pages they have never seen, and wraps the best one in a Streamlit app that shows you
+**where to look** — as ranked, zoomed-in candidates.
 
-The tiled YOLO finds Waldo more often than not, but it is not a reliable finder. Measured with
-scene-level 5-fold cross-validation (every scene scored by a model that never trained on it;
-IoU ≥ 0.3; 21 Waldo boxes in 18 scenes that contain him):
+- 🧠 **A detector written from scratch** — sliding-window CNN, IoU and non-max suppression, all hand-implemented.
+- 🎯 **A fine-tuned YOLO11n** — first on the whole page, then on native-resolution *tiles* (the version that works).
+- 🔬 **Honest evaluation** — scene-level 5-fold cross-validation, thresholds chosen without peeking, small-sample
+  caveats spelled out.
+- 🕵️ **A detective story** — a data bug that hid in plain sight and was capping every result. (See
+  [the case of the misplaced Waldos](#misplaced-waldos).)
+- 🖥️ **A themed demo app** — upload a page, get the top suspects, each shown up close.
 
-| model | found | false positives | missed | precision | recall |
-|---|---|---|---|---|---|
-| Sliding-window CNN (from scratch) | 8 | 4,203 | 13 | 0.002 | 0.38 |
-| YOLO11n, whole scene at 640 px | 2 | 22 | 19 | 0.083 | 0.095 |
-| YOLO11n, native tiles | 6 | 0 | 15 | 1.00 | 0.29 |
-| YOLO11n, native tiles, multi-scale | 7 | 14 | 14 | 0.33 | 0.33 |
+---
 
-The most useful readout is ranking — *is Waldo among the detector's top-k boxes?* — since a puzzle
-has one Waldo. For the tiled YOLO with multi-scale scanning he is the **#1 box in 10 of 18 scenes,
-in the top 3 in 13 (72%), and in the top 10 in 14**. The demo therefore shows the top few candidates.
+## 📑 Contents
 
-Things to know before trusting any of this:
+[Results](#results) · [Field notes](#field-notes) · [How it works](#how-it-works) ·
+[Quick start](#quick-start) · [Reproduce everything](#reproduce) · [The notebooks](#notebooks) ·
+[Repo layout](#layout) · [Limitations](#limitations) ·
+[Credits & licensing](#credits)
 
-- Only 21 boxes / 18 scenes, so every number has wide error bars (re-running the whole-scene YOLO
-  swung it from 4 hits to 2).
-- The multi-scale variant was picked out of four on the same scenes, so it is somewhat optimistic.
-- Three annotated "Waldos" are Waldo portraits on postcard stamps, not hidden figures.
-- The demo's tiled model is trained on all 19 scenes, so there is nothing held out to score it on;
-  the cross-validated numbers are the estimate of how it should behave.
-- Scenes 2, 3 and 13 are never found at confidence ≥ 0.01, and I haven't worked out why.
+---
 
-**A data bug worth knowing about.** Roboflow's export flipped or rotated 8 of the 19 pages relative to
-the Hey-Waldo scans. Mapping its boxes onto the scans by rescaling alone put the "ground truth" on the
-wrong content for those scenes, which capped every native-resolution result until notebook 02 learned to
-detect each page's orientation (and refuse to continue without a clear match). Fixing it took the tiled
-YOLO from "Waldo in the top-10 for 4 of 18 scenes" to 10 of 18 with the same training recipe.
-Full write-up: notebook 06.
+<a id="results"></a>
 
-## Project structure
+## 🏆 Results at a glance
 
+Everything is scored with **scene-level 5-fold cross-validation**: each of the 19 scenes is judged by a model that
+never saw it in training (a box counts as a hit at IoU ≥ 0.3). There are **21 Waldo boxes in 18 scenes** that contain
+him.
+
+| Detector | Found | False alarms | Missed | Precision | Recall | Time / page* |
+|---|---:|---:|---:|---:|---:|---:|
+| Sliding-window CNN (from scratch) | 8 | 4,203 | 13 | 0.002 | 0.38 | ~4.3 s |
+| YOLO11n, whole page shrunk to 640 px | 2 | 22 | 19 | 0.083 | 0.095 | ~0.12 s |
+| YOLO11n, native-resolution **tiles** | 6 | 0 | 15 | 1.00 | 0.29 | ~1.8 s |
+| YOLO11n, tiles, **multi-scale** | 7 | 14 | 14 | 0.33 | 0.33 | ~6 s |
+
+<sub>*CPU-only laptop (AMD Ryzen 3 4300U). The first two timings are on the 640×640 page image, the tiled ones on
+full-size scans. Precision/recall use a confidence threshold picked leave-one-fold-out (on the *other* four folds) —
+the most conservative protocol here.</sub>
+
+Because a puzzle page has exactly one Waldo, the most useful question is **"is he among the detector's top *k*
+guesses?"** For the best detector (tiles, multi-scale), on the 18 held-out pages that contain him:
+
+| Waldo is in the top… | 1 | 3 | 5 | 10 |
+|---|---:|---:|---:|---:|
+| **Pages (of 18)** | **10** (56%) | **13** (72%) | **13** (72%) | **14** (78%) |
+
+That is why the demo shows **ranked candidates with close-ups** rather than a single confident box.
+
+**What moved the needle:** not shrinking the page. Running YOLO on native-resolution tiles took it from 2 hits to
+6–7. **What didn't:** hard-negative mining (no change) and, as far as one un-ablated experiment can say, copy-paste
+synthetic data.
+
+---
+
+<a id="field-notes"></a>
+
+## 🧭 Field notes from actually using it
+
+*Informal impressions from the author's own use of the demo — not a measured benchmark, and the demo's model was
+trained on all 19 pages, so judge it on pages it hasn't seen.*
+
+- Most of the time Waldo is in the **top 3** candidates; when he isn't, he is usually within the **top 10**.
+- The most common false alarm is **Wenda** — which makes sense: she wears the same red-and-white stripes and
+  glasses, so she is exactly the kind of look-alike this task punishes.
+- Overall: good enough to point you at the right neighbourhood of the page, not good enough to trust blindly.
+  Always check the close-ups.
+
+---
+
+<a id="how-it-works"></a>
+
+## ⚙️ How it works
+
+```mermaid
+flowchart LR
+    A["📖 Roboflow annotations<br/>65 images → 19 clean scenes"] --> C
+    B["🖼️ Hey-Waldo native-resolution scans<br/>+ ~3,000 extra patches"] --> C
+    C["🧭 Align orientation<br/>8 of 19 pages were flipped/rotated"] --> D
+    D["✂️ 640×640 tiles<br/>+ copy-paste Waldos"] --> E["🎯 Fine-tune YOLO11n"]
+    E --> F["🔍 Scan the whole page<br/>3 scales, merge with NMS"]
+    F --> G["🏅 Ranked candidates<br/>+ zoomed close-ups"]
 ```
-notebooks/          six pipeline stages, each with markdown explaining *why*
-  01_data_exploration.ipynb
-  02_preprocessing.ipynb           (also: native-scan alignment, crop pool)
-  03_train_sliding_window.ipynb
-  04_train_yolo.ipynb              (whole-scene YOLO baseline)
-  05_tiled_yolo.ipynb              (native-resolution tiles; the best detector)
-  06_evaluation_error_analysis.ipynb
-src/
-  data/              dataset loading, patches, augmentation, native alignment, tiling
-  models/            sliding-window CNN, IoU/NMS implementation
-  eval/              detection metrics (precision/recall @ IoU, localization error)
-tests/               box-mapping tests for the native-scan alignment
-app/                 Streamlit demo app (main.py) and its Waldo-storybook look (waldo_theme.py)
-.streamlit/           Streamlit theme colours (run the app from the project root so they apply)
-run_all.py           runs the notebooks unattended (e.g. overnight)
-data/
-  raw/               downloaded source dataset (gitignored)
-  processed/         generated patches / splits / results (gitignored)
-Hey-Waldo/           second dataset, from Kaggle (gitignored; see Dataset)
-models/              trained weights (gitignored)
-```
 
-## Dataset
+**Why tiles?** The public dataset ships every page stretched to 640×640, which squeezes Waldo to ~18×35 px (median) —
+about one cell of YOLO11n's coarsest feature map. The original scans are 1,300–2,800 px wide, where he is ~50×60 px.
+So the best detector never downscales: it trains on 640×640 native-resolution tiles (real Waldos at random offsets,
+background tiles, and tiles with a Waldo crop from *another* training page pasted in) and, at inference, scans the whole
+page with overlapping tiles at 0.75×, 1× and 1.5×, mapping the boxes back and merging duplicates with the project's own
+hand-written NMS.
 
-[Roboflow "where's waldo"](https://universe.roboflow.com/ml-9naud/where-s-waldo-vugud) —
-65 raw images, single class (`waldo`), bounding-box annotated, CC BY 4.0, exported in
-Pascal VOC XML format. Notebook 01 found that most of these 65 images are actually
-unrelated portrait closeups rather than genuine "hidden in a crowd" puzzle scenes; after
-filtering to the genuine ones, **19 clean scenes** remain and are what the rest of the
-pipeline is built on (`data/processed/clean_manifest.csv`). With so few scenes, splitting
-happens via **scene-level 5-fold cross-validation** (notebook 02), not one fixed
-train/val/test split — and always at the scene level, never patch level, to avoid leakage
-between crops of the same image.
+**The three detectors**
 
-The same 19 scenes also come from a second source,
-[Hey-Waldo](https://www.kaggle.com/datasets/residentmario/wheres-waldo) (place it at `Hey-Waldo/`).
-Roboflow supplies the bounding-box annotations (in its own 640×640, sometimes flipped/rotated, images);
-Hey-Waldo supplies the native-resolution scans and ~3,000 extra classification patches for the
-sliding-window model. Notebook 02 aligns the two (see the data-bug note above).
+| | What it is | Why it's here |
+|---|---|---|
+| 🧱 **Sliding-window CNN** | A 98k-parameter CNN that says "Waldo / not Waldo" for a 64×64 crop, slid across the page at 5 sizes | Built from scratch so IoU, NMS and windowing are visible in code, not hidden in a framework |
+| 🖼️ **Whole-page YOLO** | YOLO11n fine-tuned on the page shrunk to 640×640 | The obvious framework baseline |
+| 🎯 **Tiled YOLO** | The same YOLO11n on native-resolution tiles, optionally at several scales | The fix for "Waldo is too small to see" — the best result |
 
-## Setup
+---
+
+<a id="quick-start"></a>
+
+## 🚀 Quick start
+
+**Try the demo** — the trained weights are included in `models/`, so there is nothing to train.
 
 ```bash
+git clone https://github.com/VasilisVas1/wheres-waldo.git
+cd wheres-waldo
 python -m venv .venv
-.venv\Scripts\activate      # Windows
+```
+Activate the environment — on **Windows**:
+```bash
+.venv\Scripts\activate
+```
+or on **macOS / Linux**:
+```bash
+source .venv/bin/activate
+```
+Then install and launch:
+```bash
 pip install -r requirements.txt
 ```
-
-## Running the notebooks
-
-```bash
-jupyter lab
-```
-
-Work through `notebooks/01_...` to `notebooks/06_...` in order — each stage depends
-on artifacts produced by the previous one (raw data → patches/splits/aligned scans → trained
-sliding-window model → whole-scene YOLO → tiled YOLO → evaluation).
-
-### Running everything unattended
-
-Training (notebooks 03–05) takes hours on a CPU (roughly 4–5 h for notebook 05 alone on a laptop), so run
-the pipeline in the background:
-
-```bash
-python run_all.py --detach       # notebooks 01 -> 06 in order; stops at the first failure
-python run_all.py --from 04      # resume from a notebook (e.g. after an interruption)
-python run_all.py --only 05,06   # run just these notebooks
-```
-
-It keeps Windows from idle-sleeping while it runs (closing the lid can still sleep the machine, so
-leave it open and plugged in). Progress is in `logs/status.json` and `logs/<notebook>.log`; each
-notebook is saved in place with its outputs when it finishes. Notebooks 04 and 05 skip folds that
-already finished training, so an interrupted run resumes.
-
-## Running the demo app
-
 ```bash
 streamlit run app/main.py
 ```
 
-Pick "YOLO on native-resolution tiles" and upload a full-size scan (1,300 px+ wide; a small web image
-gives Waldo too few pixels). It scans at three scales, outlines the top candidates with numbered boxes, and
-shows an enlarged close-up of each one below the scene (the best guess largest), so you don't have to zoom
-into the full image to find the box. Scanning takes several seconds on a CPU; after that, the confidence and
-"how many candidates" sliders re-filter the same scan instantly. The page is styled like a Where's Waldo
-book (red-and-white stripes, a waving cartoon Waldo, and one tiny Waldo hiding in the bottom-right corner).
+Your browser opens on `http://localhost:8501`. Then:
 
-## Tests
+1. Pick **YOLO on native-resolution tiles** (the default).
+2. Drop in a **full-size scan** of a Where's Waldo page (JPG/PNG, roughly 1,300 px wide or more — a small web image
+   leaves Waldo too few pixels).
+3. Click **Find Waldo!** (a few seconds on a CPU). You get numbered boxes on the page and an enlarged close-up of each
+   candidate, the best guess largest. The two sliders re-filter the same scan instantly.
+
+> 💡 **Test on a page the model hasn't seen.** The included tiled model was trained on all 19 pages of the dataset, so
+> those pages will look better than they should.
+>
+> Run the app **from the project root** so the theme in `.streamlit/config.toml` applies. The headings use web fonts
+> (Google Fonts); offline it falls back to plain system fonts.
+
+---
+
+<a id="reproduce"></a>
+
+## 🔁 Reproduce everything
+
+The trained weights are committed, but every number in this README can be regenerated. It takes **roughly 9–10 hours
+on a CPU-only laptop**, so it is designed to run unattended.
+
+**1. Install** — same as above (`requirements.txt` includes Jupyter).
+
+**2. Get the two datasets** (neither is redistributed here — see [Credits](#credits)):
+
+| Dataset | What it provides | How |
+|---|---|---|
+| [Roboflow "where's waldo"](https://universe.roboflow.com/ml-9naud/where-s-waldo-vugud) (v1, Pascal VOC) | The bounding boxes | Free Roboflow account → accept the dataset terms → copy your API key → `cp .env.example .env` and paste it in. Notebook 01 downloads it automatically (or run `python -m src.data.download_dataset`). |
+| [Hey-Waldo](https://github.com/vc1492a/Hey-Waldo) (also on [Kaggle](https://www.kaggle.com/datasets/residentmario/wheres-waldo)) | Full-resolution scans + ~3,000 labelled patches | Download and unzip it to `Hey-Waldo/` so that `Hey-Waldo/original-images/1.jpg … 19.jpg` and `Hey-Waldo/{64,128,256}/{waldo,notwaldo}/` exist. |
+
+**3. Run the notebooks** — either interactively (`jupyter lab`, then work through `notebooks/01_…` to `06_…`), or all
+at once in the background:
 
 ```bash
-python -m pytest tests
+python run_all.py --detach       # notebooks 01 → 06 in order; stops at the first failure
+python run_all.py --from 04      # resume from a notebook after an interruption
+python run_all.py --only 05,06   # run just these
 ```
+
+Progress goes to `logs/status.json` and `logs/<notebook>.log`. On Windows the runner keeps the machine awake (closing
+the lid can still sleep it). Notebooks 04 and 05 skip folds that already finished training, so an interrupted run
+resumes. Note that notebooks are executed **in place**: re-running overwrites the results currently stored in them.
+
+**4. Check it works:** `python -m pytest tests` (8 tests covering the box-mapping maths behind the alignment fix).
+
+<details>
+<summary><b>Reproducibility notes</b> (seeds, expected variance, tested versions)</summary>
+
+- Fold assignment: `KFold(n_splits=5, shuffle=True, random_state=42)` on scene ids. Patch and tile generation are
+  seeded; PyTorch is seeded in notebook 03; YOLO uses ultralytics' default seed with `deterministic=True`.
+- **Expect different numbers on a re-run**, especially for YOLO: with 21 boxes, a single detection changes a result a
+  lot (the whole-page YOLO went from 4 hits to 2 between two runs of the same notebook). Rankings and the qualitative
+  story are stable; exact counts are not.
+- Developed and tested on **Windows 11, CPU only**. The notebooks pick a GPU automatically if `torch.cuda` is
+  available (untested here). macOS/Linux should work; the runner's keep-awake step is Windows-only.
+- Versions used for the results above:
+
+| Python | torch | torchvision | ultralytics | streamlit | numpy | pandas | scikit-learn | albumentations | Pillow |
+|---|---|---|---|---|---|---|---|---|---|
+| 3.10.1 | 2.14.0 | 0.29.0 | 8.4.154 | 1.64.0 | 2.2.6 | 2.3.3 | 1.7.2 | 2.0.8 | 12.3.0 |
+
+`requirements.txt` gives minimum versions rather than pins; the code uses the albumentations **2.x** API.
+
+</details>
+
+---
+
+<a id="notebooks"></a>
+
+## 📓 The notebooks
+
+Each notebook is written as a narrative: *what we're testing, why, what we saw, and what it means for the next step.*
+They are saved **with their outputs**, so you can read the whole story on GitHub without running anything.
+
+| # | Notebook | What happens | CPU time |
+|---|---|---|---|
+| 01 | `01_data_exploration` | What the data really is: Waldo's size, extreme class imbalance, and a leakage check. Discovers that most of the 65 "scenes" are unrelated portrait close-ups → 19 clean scenes | minutes |
+| 02 | `02_preprocessing` | Scene-level 5-fold split, patch corpus, augmentation; **Part 2:** Hey-Waldo patches, aligning the native scans (the [orientation bug](#misplaced-waldos)), copy-paste synthetic data | ~1 min |
+| 03 | `03_train_sliding_window` | The from-scratch CNN + sliding window + NMS; threshold sweep; hard-negative mining (which didn't help) | ~35 min |
+| 04 | `04_train_yolo` | Whole-page YOLO11n baseline across 5 folds, scored with the same metrics as 03 | ~4 h |
+| 05 | `05_tiled_yolo` | **The main result:** native-resolution tiles, multi-scale scanning, leave-one-fold-out thresholds, hit@k | ~5 h |
+| 06 | `06_evaluation_error_analysis` | Side-by-side comparison, failure modes, and the full write-up | < 1 min |
+
+*Some notebooks refer to "the project brief" — that is the original assignment description this project started from.*
+
+---
+
+<a id="misplaced-waldos"></a>
+
+## 🕵️ The case of the misplaced Waldos
+
+Notebook 05's first attempt looked… bad. Waldo landed in the top 10 for only **4 of 18** pages, and the model's most
+*confident* "false positives" turned out to be striking Waldo look-alikes. Something was off with the labels, not the
+model.
+
+The culprit: the annotated dataset's export had **flipped or rotated 8 of the 19 pages** relative to the full-resolution
+scans. Mapping its boxes onto the scans by rescaling alone put the "ground truth" on a policeman, a letter and a red
+panel. A spot-check of four random pages had happened to draw only unaffected ones.
+
+The fix (`src/data/native_manifest.py`): for each page, compare the annotated image against all 8 flips/rotations of the
+scan by image correlation (≈ 0.99 for the right one, ≤ 0.75 for every wrong one), refuse to continue without a clear
+winner, and map each box back through the inverse transform. `tests/test_native_alignment.py` checks the maths against
+real image transforms for all 8 cases, and notebook 02 now displays **every** box.
+
+Result with the *identical* training recipe: **4 → 10 of 18** pages with Waldo in the top 10. The lesson is written into
+notebook 06: verify labels on every example, not a sample.
+
+---
+
+<a id="layout"></a>
+
+## 🗂️ Repository layout
+
+```
+.
+├── notebooks/        six narrative notebooks (01 → 06), saved with outputs
+├── src/
+│   ├── data/         loading, patches, augmentation, native-scan alignment, synthetic data, tiling
+│   ├── models/       sliding-window CNN and its training loop
+│   └── eval/         hand-written IoU / NMS and the detection metrics
+├── app/              Streamlit demo (main.py) and its Where's-Waldo theme (waldo_theme.py)
+├── tests/            unit tests for the box mapping behind the alignment fix
+├── models/           trained weights (~11 MB) + the tiled detector's config
+├── .streamlit/       theme colours for the demo
+├── run_all.py        run the notebooks unattended, in order
+├── .env.example      template for the Roboflow API key
+├── requirements.txt
+└── LICENSE           MIT
+```
+
+Generated at run time and not committed: `data/` (raw + processed), `Hey-Waldo/`, `runs/` (training runs), `logs/`.
+
+---
+
+<a id="limitations"></a>
+
+## ⚠️ Limitations (read before trusting anything)
+
+- **Tiny evaluation set.** 21 boxes in 18 scenes: every number has wide error bars, and single detections swing results.
+- **Multi-scale was chosen on the test pages.** The scale set (0.75/1/1.5) was picked from four variants using the same
+  held-out scenes, so its numbers are somewhat optimistic. Single-scale tiles are the untuned reference.
+- **The demo's model can't be scored.** It is trained on all 19 pages, so nothing is held out; the cross-validated
+  numbers are the estimate of how it should behave on new pages.
+- **Some "Waldos" aren't hidden.** Three annotated boxes are Waldo *portraits on postcard stamps*, not hidden figures.
+- **Misses I haven't explained.** Pages 2, 3 and 13 are never found (nothing matching Waldo at confidence ≥ 0.01), and
+  page 7 only at rank 36.
+- **Look-alikes** (Wenda in particular) are a frequent false alarm — see the field notes above.
+- **Weak baselines by design.** The sliding-window CNN buries Waldo under ~220 false boxes per page, and the whole-page
+  YOLO is noisy run to run; they exist to show *why* the tiled approach matters.
+- **No ablations.** For example, whether copy-paste synthetic data helps was not isolated.
+- **Input size matters.** Small or low-resolution uploads give Waldo too few pixels for any of the detectors.
+
+---
+
+<a id="credits"></a>
+
+## 🙏 Credits & licensing
+
+- **Code:** [MIT](LICENSE).
+- **Where's Waldo? / Where's Wally?** is created by Martin Handford and published by Walker Books / Candlewick Press.
+  This is an **unofficial, educational project** with no affiliation. **The book pages themselves are not distributed in
+  this repository** — you obtain the datasets yourself. The saved notebook outputs contain small excerpts (thumbnails,
+  close-ups, detection overlays) shown to illustrate the results; if you are a rights holder and would like them removed,
+  please open an issue.
+- **Data:** annotations from the ["where's waldo" project](https://universe.roboflow.com/ml-9naud/where-s-waldo-vugud) by
+  *ml-9naud* on Roboflow Universe (CC BY 4.0); full-resolution scans and extra patches from
+  [Hey-Waldo](https://github.com/vc1492a/Hey-Waldo). Please follow each dataset's own terms.
+- **Models:** the YOLO weights in `models/` are fine-tuned from Ultralytics **YOLO11n**, which is licensed under
+  **AGPL-3.0**; the demo also uses the Ultralytics library. If you build on them (for example by hosting a modified
+  version as a network service), review the [Ultralytics license](https://github.com/ultralytics/ultralytics/blob/main/LICENSE).
+  The sliding-window CNN weights are original to this project.
+- **Built with:** PyTorch, Ultralytics, albumentations, scikit-learn, pandas, Streamlit and Jupyter.
+
+<p align="center">🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪</p>
+<p align="center"><i>Psst — a tiny Waldo is hiding in the bottom-right corner of the demo app. Did you find him? 🔍</i></p>

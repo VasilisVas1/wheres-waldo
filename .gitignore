@@ -8,10 +8,11 @@ data/raw/
 data/processed/
 Hey-Waldo/
 *.pt
+# ...except the small trained weights, which ship with the repo so the demo works after cloning
+!models/*.pt
 *.pth
 runs/
 .env
 .DS_Store
 *.egg-info/
 logs/
-models/

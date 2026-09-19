@@ -3,12 +3,12 @@ full-scene training images for YOLO by pasting real Waldo crops (taken from
 *other* training scenes) onto a background scene at new random positions,
 scales, and rotations.
 
-Why this is the real lever for YOLO's problem (see notebook 04/05): YOLO
-wasn't short on augmentation — mosaic/flip/HSV jitter were already on — it
-was short on distinct *scenes*. 15 training images is too few no matter how
-each one is perturbed. Copy-paste generates new (background, box) pairs
-rather than new views of the same 15 pairs, which is a qualitatively
-different kind of diversity.
+Motivation (see notebooks 04-06): YOLO wasn't short on augmentation —
+mosaic/flip/HSV jitter were already on — it was short on distinct *scenes*.
+15 training images is too few no matter how each one is perturbed.
+Copy-paste generates new (background, box) pairs rather than new views of
+the same 15 pairs, which is a qualitatively different kind of diversity.
+(Whether it helps was not isolated: the project ran no ablation.)
 
 This is fold-aware by construction: callers pass only that fold's *training*
 scenes as both the crop source and the paste target, so no information about

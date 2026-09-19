@@ -16,8 +16,8 @@ RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 
 def main() -> None:
     # Imported here, not at module top: notebook 01 imports RAW_DATA_DIR from this module even when
-    # the raw data is already present (e.g. shipped in the Kaggle package), and that path shouldn't
-    # require roboflow / python-dotenv to be installed.
+    # the raw data is already downloaded, and that path shouldn't require roboflow / python-dotenv
+    # to be installed.
     from dotenv import load_dotenv
     from roboflow import Roboflow
 

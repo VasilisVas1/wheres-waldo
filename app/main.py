@@ -1,8 +1,10 @@
-"""Streamlit demo: upload a new Where's Waldo scene, watch the sliding-window
-classifier search it live (heatmap building up, then NMS collapsing
-candidates to a final box), or get YOLO's instant single-shot answer.
+"""Streamlit demo: upload a Where's Waldo page and get ranked candidates for where he is.
 
-Run with: streamlit run app/main.py
+Three detectors to choose from: YOLO scanning native-resolution tiles at several scales (the best one, and
+the default), the from-scratch sliding-window CNN (watch its heatmap build up live, then NMS collapse the
+candidates), or YOLO on the whole shrunken scene. Each candidate is also shown as an enlarged close-up.
+
+Run from the project root so `.streamlit/config.toml` (the theme) applies:  streamlit run app/main.py
 """
 
 from __future__ import annotations
@@ -217,8 +219,8 @@ tiled_model, tiled_config = load_tiled_yolo()
 
 if sw_model is None and yolo_model is None and tiled_model is None:
     st.warning(
-        "No trained models found in `models/`. Run notebooks 03 and 04 first to produce "
-        "`sliding_window_classifier.pt` and `yolo_detector.pt`."
+        "No trained models found in `models/`. Run notebooks 03, 04 and 05 first to produce "
+        "`sliding_window_classifier.pt`, `yolo_detector.pt` and `yolo_tiled_detector.pt`."
     )
 
 uploaded = st.file_uploader("Drop in a page from a Where's Waldo book", type=["jpg", "jpeg", "png"])
