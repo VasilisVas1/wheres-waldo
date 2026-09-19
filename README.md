@@ -149,12 +149,51 @@ Your browser opens on `http://localhost:8501`. Then:
    leaves Waldo too few pixels).
 3. Click **Find Waldo!** (a few seconds on a CPU). You get numbered boxes on the page and an enlarged close-up of each
    candidate, the best guess largest. The two sliders re-filter the same scan instantly.
+4. **Not seeing Waldo? Raise "Show at most this many candidates"** (up to 10) and look through the close-ups — he is
+   not always in the first three. [Here's what that looks like.](#what-youll-see)
 
 > 💡 **Test on a page the model hasn't seen.** The included tiled model was trained on all 19 pages of the dataset, so
 > those pages will look better than they should.
 >
 > Run the app **from the project root** so the theme in `.streamlit/config.toml` applies. The headings use web fonts
 > (Google Fonts); offline it falls back to plain system fonts.
+
+<a id="what-youll-see"></a>
+
+### 🖼️ What you'll see — and why "top 3" isn't always enough
+
+<p align="center">
+  <img src="docs/images/app-overview.png" width="900" alt="The Where's Waldo demo app: a striped header with a waving cartoon Waldo, a file uploader, a detector picker, and the page next to the search result with numbered boxes">
+  <br><sub>Upload a page, pick a detector, click <b>Find Waldo!</b>. Boxes are numbered by confidence.</sub>
+</p>
+
+**When it works: Waldo is candidate #1.** On this page the best guess (88% confident) is Waldo himself, up in the
+trees — the close-up makes him easy to confirm without zooming into the full page:
+
+<p align="center">
+  <img src="docs/images/giants-page-search.webp" width="49%" alt="A busy fantasy scene with three numbered candidate boxes drawn on it">
+  <img src="docs/images/giants-page-top-candidates.webp" width="49%" alt="Enlarged close-ups of the three candidates; the best guess, at 88%, shows Waldo in his striped shirt and bobble hat">
+</p>
+
+**When it needs more candidates: Waldo isn't in the top 3.** This crowded page is covered in tiny look-alike portraits.
+The very top guess (93%) is the Waldo portrait printed on the postcard stamp, and the hidden Waldo-style portraits
+only appear further down the ranking — for example **#6 (38%)** wears a red-and-white bobble hat and round glasses.
+Stop at three candidates and you'd miss it; raising the slider to 10 shows them all:
+
+<p align="center">
+  <img src="docs/images/portrait-page-search.webp" width="49%" alt="A page of hundreds of tiny framed portraits with ten numbered candidate boxes drawn on it">
+  <img src="docs/images/portrait-page-lower-candidates.webp" width="49%" alt="Enlarged close-ups of candidates 4 to 10, several of them look-alike portraits">
+</p>
+
+So, in practice:
+
+- **Start with the default 3.** That matches what we measured: Waldo is in the top 3 for about 72% of held-out pages
+  (top 10: about 78%).
+- **On busy or look-alike-heavy pages, raise the slider to 10** and scan the close-ups. Look for the red-and-white
+  striped shirt and bobble hat, round glasses and a cane.
+- **A high score is not a guarantee.** The confidence is the model's own score, not a probability — the stamp portrait
+  above scores 93%, and look-alikes such as Wenda regularly score highly.
+- **If fewer boxes appear than you asked for,** lower **Minimum confidence** (it defaults to 0.05).
 
 ---
 
@@ -304,10 +343,10 @@ Generated at run time and not committed: `data/` (raw + processed), `Hey-Waldo/`
 
 - **Code:** [MIT](LICENSE).
 - **Where's Waldo? / Where's Wally?** is created by Martin Handford and published by Walker Books / Candlewick Press.
-  This is an **unofficial, educational project** with no affiliation. **The book pages themselves are not distributed in
-  this repository** — you obtain the datasets yourself. The saved notebook outputs contain small excerpts (thumbnails,
-  close-ups, detection overlays) shown to illustrate the results; if you are a rights holder and would like them removed,
-  please open an issue.
+  This is an **unofficial, educational project** with no affiliation. **The datasets (the page scans) are not distributed
+  in this repository** — you obtain them yourself. The saved notebook outputs and the app screenshots in
+  `docs/images/` do show reduced-size book pages, close-ups and detection overlays, purely to illustrate the results; if
+  you are a rights holder and would like them removed, please open an issue.
 - **Data:** annotations from the ["where's waldo" project](https://universe.roboflow.com/ml-9naud/where-s-waldo-vugud) by
   *ml-9naud* on Roboflow Universe (CC BY 4.0); full-resolution scans and extra patches from
   [Hey-Waldo](https://github.com/vc1492a/Hey-Waldo). Please follow each dataset's own terms.
