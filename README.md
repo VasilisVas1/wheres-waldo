@@ -305,6 +305,7 @@ notebook 06: verify labels on every example, not a sample.
 │   └── eval/         hand-written IoU / NMS and the detection metrics
 ├── app/              Streamlit demo (main.py) and its Where's-Waldo theme (waldo_theme.py)
 ├── tests/            unit tests for the box mapping behind the alignment fix
+├── docs/images/      app screenshots used in this README
 ├── models/           trained weights (~11 MB) + the tiled detector's config
 ├── .streamlit/       theme colours for the demo
 ├── run_all.py        run the notebooks unattended, in order
