@@ -1,0 +1,17 @@
+# Lean dependencies for hosting ONLY the Streamlit demo (e.g. Streamlit Community Cloud).
+# Community Cloud looks in the app's own folder first, so this file is used instead of the full
+# project requirements.txt at the repo root (which also pulls in Jupyter, Roboflow, pytest...).
+# For local development, use the root requirements.txt.
+
+# CPU-only PyTorch (the default Linux wheel bundles ~2 GB of CUDA libraries the demo can't use)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+
+ultralytics>=8.3
+streamlit>=1.32
+albumentations>=2.0   # imported by src/data/patch_dataset.py, which the demo uses for its preprocessing helper
+numpy
+pandas
+pillow
+pyyaml
