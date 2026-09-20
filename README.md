@@ -10,6 +10,10 @@
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
+<p align="center">
+  <a href="https://wheres-waldo-finder.streamlit.app/"><img alt="Try the live demo" src="https://img.shields.io/badge/%F0%9F%94%8D%20Try%20the%20live%20demo-no%20install%20needed-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white"></a>
+</p>
+
 <p align="center">🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪🔴⚪</p>
 
 Waldo is about **0.14% of a page** and hides among hundreds of look-alikes. This project builds three detectors for
@@ -23,6 +27,8 @@ him, compares them honestly on pages they have never seen, and wraps the best on
 - **A detective story** — a data bug that hid in plain sight and was capping every result. (See
   [the case of the misplaced Waldos](#misplaced-waldos).)
 - **A themed demo app** — upload a page, get the top suspects, each shown up close.
+  **[Try it live](https://wheres-waldo-finder.streamlit.app/)** (free hosting: if nobody has visited for ~12 hours it
+  sleeps and takes about a minute to wake up).
 
 ---
 
@@ -119,7 +125,10 @@ hand-written NMS.
 
 ## Quick start
 
-**Try the demo** — the trained weights are included in `models/`, so there is nothing to train.
+**Don't want to install anything?** Use the hosted version: **[wheres-waldo-finder.streamlit.app](https://wheres-waldo-finder.streamlit.app/)**.
+It runs on a small free server, so very large uploads can occasionally fail — running it locally (below) has no such limit.
+
+**Run the demo yourself** — the trained weights are included in `models/`, so there is nothing to train.
 
 ```bash
 git clone https://github.com/VasilisVas1/wheres-waldo.git
